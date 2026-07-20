@@ -16,9 +16,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Upgrade pip and wheel
-        run: python -m pip install --upgrade pip wheel
-
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
 
@@ -26,3 +23,41 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: pytest -q
+
+      - name: Create build artifact
+        run: |
+          mkdir artifact
+          echo "artifact-source=ci-test-job" > artifact/build-source.txt
+          echo "commit=${{ github.sha }}" >> artifact/build-source.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: artifact
+          retention-days: 1
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: artifact
+
+      - name: Build Docker image
+        run: docker build -t demo-app:${{ github.sha }} .
+
+      - name: Run container and verify endpoints
+        run: |
+          docker run -d --name demo-artifact-test -p 5000:5000 demo-app:${{ github.sha }}
+          sleep 2
+          curl -sS http://localhost:5000/
+          curl -sS http://localhost:5000/add?a=2&b=3
+          docker stop demo-artifact-test
+          docker rm demo-artifact-test

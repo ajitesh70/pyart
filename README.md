@@ -20,6 +20,7 @@ pytest
 
 What the workflow does:
 
-- **Job `test`**: checks out the repo, sets up Python, installs dependencies, and runs `pytest`.
+- **Job `test`**: checks out the repo, sets up Python, installs dependencies, runs `pytest`, and creates a generic build artifact.
+- **Job `image`**: downloads the artifact, copies it into the Docker build context, and builds the image.
 
-The workflow no longer uses wheel artifacts or Docker build steps; it only validates the unit tests.
+The Docker image build now consumes a build artifact produced by the earlier test job, without using wheel or wheelhouse packaging.

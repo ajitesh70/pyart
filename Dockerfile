@@ -1,14 +1,15 @@
 FROM python:3.11-slim
 WORKDIR /app
 
-# Copy the wheels produced by the CI `test` job (downloaded into wheelhouse)
-COPY wheelhouse/ /wheels/
+# Copy the artifact produced by the `test` job and downloaded by the `image` job.
+COPY artifact/ /artifact/
+
+# Verify the artifact is available at build time.
+RUN test -f /artifact/build-source.txt
+
 COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Install from the offline wheelhouse only — no network access.
-RUN pip install --no-index --find-links=/wheels -r requirements.txt
-
-# Copy application files
 COPY . .
 
 EXPOSE 5000
