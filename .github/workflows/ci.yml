@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Upgrade pip and wheel
+        run: python -m pip install --upgrade pip wheel
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Build wheels
+        run: |
+          # Build wheels for runtime requirements into wheelhouse/
+          pip wheel -r requirements.txt -w wheelhouse
+
+      - name: Upload wheels artifact
+        # Upload the built wheels so later jobs can install from them offline
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-wheels
+          path: wheelhouse
+          retention-days: 1
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download wheels artifact
+        # Download the wheels produced by the `test` job into ./wheelhouse
+        uses: actions/download-artifact@v4
+        with:
+          name: python-wheels
+          path: wheelhouse
+
+      - name: Build Docker image
+        run: docker build -t demo-app:${{ github.sha }} .
+
+      - name: Run container and verify endpoints
+        run: |
+          # Run the image, curl the endpoints to prove it works, then remove the container
+          docker run -d --name demo-artifact-test -p 5000:5000 demo-app:${{ github.sha }}
+          sleep 2
+          curl -sS http://localhost:5000/
+          curl -sS http://localhost:5000/add?a=2&b=3
+          docker stop demo-artifact-test
+          docker rm demo-artifact-test
